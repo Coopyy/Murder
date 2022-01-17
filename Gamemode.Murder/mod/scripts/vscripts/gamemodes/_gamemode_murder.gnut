@@ -68,7 +68,7 @@ void function SelectFirstSpawnsDelayed()
 {
 	wait 10.0 + RandomFloat( 5.0 )
 	SetServerVar( "gameEndTime", Time() + GameMode_GetTimeLimit( GAMETYPE ) * 60.0 )
-	SetRespawnsEnabled( false ) // lol
+	SetRespawnsEnabled( false ) // lol owned
 
 	array<entity> players = GetPlayerArray()
 
@@ -123,8 +123,8 @@ void function RespawnPlayer(entity player)
 	if (file.murderers.contains(player)) {
 		player.GiveOffhandWeapon( "mp_weapon_grenade_sonar", OFFHAND_LEFT )
 		player.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burn_card_weapon_mod ", "burnmeter_maphack" ] ) //doesnt seem to work with kunai is primary /shrug
-		player.GiveOffhandWeapon( "melee_pilot_empty", OFFHAND_MELEE, [ "allow_as_primary" ] )
-		player.SetActiveWeaponByName( "melee_pilot_empty" )
+		player.GiveOffhandWeapon( "melee_pilot_emptyhanded", OFFHAND_MELEE, [ "allow_as_primary" ] )
+		player.SetActiveWeaponByName( "melee_pilot_emptyhanded" )
 		Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceIsMurderer" )
 	} 
 	else if (file.detectives.contains(player)) {
