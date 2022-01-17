@@ -1,0 +1,207 @@
+global function Murder_Init
+
+struct {
+	array<entity> murderers
+	array<entity> detectives
+
+	int murderer_count
+	int detective_count
+} file
+
+
+void function Murder_Init()
+{
+	SetSpawnpointGamemodeOverride( FFA )
+	SetShouldUseRoundWinningKillReplay( true )
+	ClassicMP_ForceDisableEpilogue( true )
+	SetLoadoutGracePeriodEnabled( false ) // prevent modifying loadouts with grace period
+	SetWeaponDropsEnabled( true )
+	SetRespawnsEnabled( true )
+
+	Riff_ForceTitanAvailability( eTitanAvailability.Never )
+	Riff_ForceBoostAvailability( eBoostAvailability.Disabled )
+
+	AddCallback_OnClientConnected( MurderCheckPlayer )
+	AddCallback_OnClientDisconnected( OnDisconnect )
+	AddCallback_OnPlayerKilled( OnPlayerKilled )
+	AddCallback_OnPlayerRespawned( OnPlayerRespawned )
+	AddCallback_GameStateEnter( eGameState.WinnerDetermined, OnWinnerDetermined )
+	AddCallback_GameStateEnter( eGameState.Playing, StartGame )
+
+	file.murderer_count = GetCurrentPlaylistVarInt( "murderer_count", 1 )
+	file.detective_count = GetCurrentPlaylistVarInt( "detective_count", 1 )
+    
+	SetConVarInt("hudchat_dead_can_only_talk_to_other_dead", 1)
+	//SetConVarInt("sv_alltalk", 1) until im able to mute dead players this wont be a thing
+}
+
+void function MurderCheckPlayer( entity player )
+{
+	if (GetGameState() == eGameState.Playing)
+		CheckGame()
+}
+
+void function OnDisconnect(entity player) {
+	MurderCheckPlayer(player)
+	if (file.detectives.contains(player)) { //make a new detective
+		array<entity> players = GetPlayerArray()
+		entity plr = players[ RandomInt( players.len() ) ]
+		while (file.murderers.contains(plr) || file.detectives.contains(plr))
+			plr = players[ RandomInt( players.len() ) ]
+		file.detectives.append(plr);
+	}
+}
+
+void function StartGame()
+{
+	while (GetPlayerArray().len() < (file.murderer_count + file.detective_count)) {
+		wait 10.0
+		foreach (entity player in GetPlayerArray())
+			Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceWaitingForPlayers", (file.murderer_count + file.detective_count) )
+		SetServerVar( "gameEndTime", Time() + GameMode_GetTimeLimit( GAMETYPE ) * 60.0 )
+	}
+
+	thread SelectFirstSpawnsDelayed()
+}
+
+void function SelectFirstSpawnsDelayed()
+{
+	wait 10.0 + RandomFloat( 5.0 )
+	SetServerVar( "gameEndTime", Time() + GameMode_GetTimeLimit( GAMETYPE ) * 60.0 )
+	SetRespawnsEnabled( false ) // lol
+
+	array<entity> players = GetPlayerArray()
+
+	for (int i = 0; i < file.murderer_count; i++) { // probably better way to do this but i kinda dont care
+		entity plr = players[ RandomInt( players.len() ) ]
+		while (file.murderers.contains(plr) || file.detectives.contains(plr))
+			plr = players[ RandomInt( players.len() ) ]
+		file.murderers.append(plr);
+	}
+
+	for (int i = 0; i < file.detective_count; i++) {
+		entity plr = players[ RandomInt( players.len() ) ]
+		while (file.murderers.contains(plr) || file.detectives.contains(plr))
+			plr = players[ RandomInt( players.len() ) ]
+		file.detectives.append(plr);
+	}
+	foreach ( entity pplayer in players )
+		RespawnPlayer( pplayer )
+}
+
+void function OnPlayerKilled( entity victim, entity attacker, var damageInfo )
+{
+	if ( victim != attacker && victim.IsPlayer() && attacker.IsPlayer() && GetGameState() == eGameState.Playing )
+	{
+		SetRoundWinningKillReplayAttacker(attacker)
+	    CheckGame()
+
+		if (file.murderers.contains(attacker)) {
+			attacker.TakeWeaponNow( "mp_ability_burncardweapon" )
+			attacker.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burnmeter_maphack" ] ) //refresh map hack cd 
+		}
+		if (DamageInfo_GetDamageSourceIdentifier( damageInfo ) == eDamageSourceId.mp_weapon_wingman_n ) {
+			thread GlowDroppedRevolver(victim.GetActiveWeapon()) // glow gun on ground if still there after 30 seconds
+		}
+	}
+}
+
+void function OnWinnerDetermined()
+{
+	SetRespawnsEnabled( false )
+	SetKillcamsEnabled( false )
+}
+
+void function RespawnPlayer(entity player) 
+{
+	foreach ( entity weapon in player.GetMainWeapons() )
+		player.TakeWeaponNow( weapon.GetWeaponClassName() )
+	
+	foreach ( entity weapon in player.GetOffhandWeapons() )
+		player.TakeWeaponNow( weapon.GetWeaponClassName() )
+	
+	if (file.murderers.contains(player)) {
+		player.GiveOffhandWeapon( "mp_weapon_grenade_sonar", OFFHAND_LEFT )
+		player.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burnmeter_maphack" ] ) //doesnt seem to work with kunai is primary /shrug
+		player.GiveOffhandWeapon( "melee_pilot_kunai", OFFHAND_MELEE, [ "allow_as_primary" ] )
+		player.SetActiveWeaponByName( "melee_pilot_kunai" )
+		Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceIsMurderer" )
+	} 
+	else if (file.detectives.contains(player)) {
+		player.GiveWeapon( "mp_weapon_wingman_n")
+		Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceIsDetective" )
+	}
+	else {
+		Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceIsBystander" )
+	}
+	
+}
+
+void function GlowDroppedRevolver(entity weapon) {
+	wait 30.0
+	if (IsValid(weapon))
+		Highlight_SetEnemyHighlight( weapon, "sp_objective_entity" )
+}
+
+void function OnPlayerRespawned( entity player )
+{
+	foreach ( entity weapon in player.GetMainWeapons() )
+		player.TakeWeaponNow( weapon.GetWeaponClassName() )
+	
+	foreach ( entity weapon in player.GetOffhandWeapons() )
+		player.TakeWeaponNow( weapon.GetWeaponClassName() )
+	
+	thread OnPlayerRespawned_Threaded( player )
+}
+
+void function OnPlayerRespawned_Threaded( entity player )
+{
+	WaitFrame()
+	if ( IsValid( player ) )
+		PlayerEarnMeter_SetMode( player, eEarnMeterMode.DISABLED )
+}
+
+void function CheckGame() {
+	if (GetMurderersLeft() == 0) 
+		FinishGame(TEAM_IMC)
+	else if (GetNonMurderersLeft() == 0)
+		FinishGame(TEAM_MILITIA)
+}
+
+int function GetMurderersLeft() {
+	int count = 0;
+	foreach (entity player in file.murderers) 
+	{
+		if (IsValid(player) && IsAlive(player))
+			count++
+	}
+	return count
+}
+
+int function GetNonMurderersLeft() {
+	int count = 0;
+	foreach (entity player in GetPlayerArray()) 
+	{
+		if (IsValid(player) && IsAlive(player) && !file.murderers.contains(player))
+			count++
+	}
+	return count
+}
+
+void function FinishGame(int team) {
+	foreach (entity player in GetPlayerArray()) 
+	{
+		if (file.murderers.contains(player)) 
+			SetTeam(player, TEAM_MILITIA)
+		else
+			SetTeam(player, TEAM_IMC)
+	}
+
+	AddTeamScore(team, 1)
+}
+
+int function TimeoutFinishGame() {
+	if (GetMurderersLeft() > 0)
+		return TEAM_MILITIA
+	return TEAM_IMC
+}

@@ -1,0 +1,51 @@
+globalize_all_functions
+
+global const string GAMEMODE_MURDER = "murder"
+
+void function MurderMode_Init()
+{
+	AddCallback_OnCustomGamemodesInit( CreateGamemodeMurder )
+	AddCallback_OnRegisteringCustomNetworkVars( MurderRegisterNetworkVars )
+}
+
+
+void function CreateGamemodeMurder()
+{
+ 	GameMode_Create( GAMEMODE_MURDER )
+	GameMode_SetName( GAMEMODE_MURDER, "#GAMEMODE_MURDER" )
+	GameMode_SetDesc( GAMEMODE_MURDER, "#PL_murder_desc" )
+	GameMode_SetGameModeAnnouncement( GAMEMODE_MURDER, "ffa_modeDesc" )
+	GameMode_SetDefaultTimeLimits( GAMEMODE_MURDER, 15, 0.0 )
+	GameMode_SetDefaultScoreLimits( GAMEMODE_MURDER, 1, 0 ) //uhhhhhhhhhhh
+	GameMode_SetColor( GAMEMODE_MURDER, [147, 204, 57, 255] )
+
+	AddPrivateMatchMode( GAMEMODE_MURDER ) // add to private lobby modes
+
+	AddPrivateMatchModeSettingArbitrary( "#PL_murder", "murderer_count", "1" )
+	AddPrivateMatchModeSettingArbitrary( "#PL_murder", "detective_count", "1" )
+
+	#if SERVER
+		GameMode_AddServerInit( GAMEMODE_MURDER, Murder_Init )
+		GameMode_AddServerInit( GAMEMODE_MURDER, GamemodeFFAShared_Init )
+		GameMode_SetPilotSpawnpointsRatingFunc( GAMEMODE_MURDER, RateSpawnpoints_Generic )
+		GameMode_SetTitanSpawnpointsRatingFunc( GAMEMODE_MURDER, RateSpawnpoints_Generic )
+	#elseif CLIENT
+		GameMode_AddClientInit( GAMEMODE_MURDER, ClGameModeMurder_Init )
+		GameMode_AddClientInit( GAMEMODE_MURDER, GamemodeFFAShared_Init )
+		GameMode_AddClientInit( GAMEMODE_MURDER, ClGamemodeFFA_Init )
+	#endif
+	#if !UI
+		GameMode_SetScoreCompareFunc( GAMEMODE_MURDER, CompareAssaultScore )
+		GameMode_AddSharedInit( GAMEMODE_MURDER, GamemodeFFA_Dialogue_Init )
+	#endif
+}
+
+void function MurderRegisterNetworkVars()
+{
+	if ( GAMETYPE != GAMEMODE_MURDER )
+		return
+	Remote_RegisterFunction( "ServerCallback_AnnounceIsMurderer" )
+	Remote_RegisterFunction( "ServerCallback_AnnounceIsDetective" )
+	Remote_RegisterFunction( "ServerCallback_AnnounceIsBystander" )
+	Remote_RegisterFunction( "ServerCallback_AnnounceWaitingForPlayers" )
+}
