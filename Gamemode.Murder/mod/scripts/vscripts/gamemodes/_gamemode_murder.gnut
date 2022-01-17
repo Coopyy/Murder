@@ -98,7 +98,7 @@ void function OnPlayerKilled( entity victim, entity attacker, var damageInfo )
 
 		if (file.murderers.contains(attacker)) {
 			attacker.TakeWeaponNow( "mp_ability_burncardweapon" )
-			attacker.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burnmeter_maphack" ] ) //refresh map hack cd 
+			attacker.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burn_card_weapon_mod ", "burnmeter_maphack" ] ) //refresh map hack cd 
 		}
 		if (DamageInfo_GetDamageSourceIdentifier( damageInfo ) == eDamageSourceId.mp_weapon_wingman_n ) {
 			thread GlowDroppedRevolver(victim.GetActiveWeapon()) // glow gun on ground if still there after 30 seconds
@@ -122,9 +122,9 @@ void function RespawnPlayer(entity player)
 	
 	if (file.murderers.contains(player)) {
 		player.GiveOffhandWeapon( "mp_weapon_grenade_sonar", OFFHAND_LEFT )
-		player.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burnmeter_maphack" ] ) //doesnt seem to work with kunai is primary /shrug
-		player.GiveOffhandWeapon( "melee_pilot_kunai", OFFHAND_MELEE, [ "allow_as_primary" ] )
-		player.SetActiveWeaponByName( "melee_pilot_kunai" )
+		player.GiveOffhandWeapon( "mp_ability_burncardweapon", OFFHAND_RIGHT, [ "burn_card_weapon_mod ", "burnmeter_maphack" ] ) //doesnt seem to work with kunai is primary /shrug
+		player.GiveOffhandWeapon( "melee_pilot_empty", OFFHAND_MELEE, [ "allow_as_primary" ] )
+		player.SetActiveWeaponByName( "melee_pilot_empty" )
 		Remote_CallFunction_NonReplay( player, "ServerCallback_AnnounceIsMurderer" )
 	} 
 	else if (file.detectives.contains(player)) {
